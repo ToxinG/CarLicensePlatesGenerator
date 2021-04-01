@@ -12,14 +12,15 @@ def intersect(line1, line2):
     return np.array([int(abs(x)), int(abs(y))])
 
 
-def perspective_transformation(mask, new_plate):
+def perspective_transformation(mask):
 
     old_h = 85  # 115 mm
     old_w = 385  # 520 mm
     new_h = 126  # 170 mm
     new_w = 217  # 290 mm
 
-    gray = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+    # gray = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+    gray = mask.copy()
     canny_output = cv.Canny(gray, 50, 150, apertureSize=3)
 
     contours, _ = cv.findContours(canny_output, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
@@ -43,9 +44,6 @@ def perspective_transformation(mask, new_plate):
     # corners = [[c_i[0] - corners[0][0], c_i[1] - corners[0][1]] for c_i in corners]
     corners_old = [[(new_w - old_w) / 2, (new_h - old_h) / 2], [(new_w - old_w) / 2, (new_h + old_h) / 2],
                    [(new_w + old_w) / 2, (new_h - old_h) / 2], [(new_w + old_w) / 2, (new_h + old_h) / 2]]
-
-    M = cv.getPerspectiveTransform(np.array(corners_old, dtype='float32'), np.array(corners, dtype='float32'))
-    warped = cv.warpPerspective(new_plate, M, (mask.shape[1], mask.shape[0]), borderMode=cv.BORDER_TRANSPARENT)
 
     for c in corners:
     #     print(c)
@@ -86,7 +84,14 @@ def perspective_transformation(mask, new_plate):
     # cv.imshow('drawing', black)
     # cv.waitKey(0)
 
-    return warped, corners_true
+    corners_true.sort(key=lambda x: x[0])
+    left = sorted(corners_true[:2], key=lambda x: x[1])
+    right = sorted(corners_true[2:], key=lambda x: x[1])
+    corners_true = left + right
+
+    M = cv.getPerspectiveTransform(np.array(corners_old, dtype='float32'), np.array(corners_true, dtype='float32'))
+
+    return corners_true, M
 
 
 if __name__ == '__main__':
@@ -96,6 +101,8 @@ if __name__ == '__main__':
         mask = cv.imread(os.path.join(img_dir, img_name))
         new_plate = cv.imread('images/new_plates/car_6895.jpg')
         try:
-            cv.imwrite(os.path.join('images/results', img_name), perspective_transformation(mask, new_plate)[0])
+            corners, p_t = perspective_transformation(mask)
+            warped = cv.warpPerspective(new_plate, p_t, (mask.shape[1], mask.shape[0]), borderMode=cv.BORDER_TRANSPARENT)
+            cv.imwrite(os.path.join('images/results', img_name), warped)
         except Exception:
             pass
